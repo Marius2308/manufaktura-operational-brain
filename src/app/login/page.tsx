@@ -1,14 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import Image from "next/image";
 
 export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
-  const router = useRouter();
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -21,12 +19,19 @@ export default function LoginPage() {
         body: JSON.stringify({ password }),
       });
       if (res.ok) {
-        router.push("/");
-        router.refresh();
+        // Hard navigation, not router.push(): this Next.js version's App
+        // Router client-side cache can keep serving the pre-auth /login RSC
+        // response after the cookie is set, looping back here instead of
+        // picking up the new auth state (see AGENTS.md on this version's
+        // divergences). A full page load re-runs proxy.ts from scratch
+        // against the fresh cookie.
+        window.location.href = "/";
       } else {
         setError("Wrong password.");
+        setBusy(false);
       }
-    } finally {
+    } catch {
+      setError("Something went wrong. Try again.");
       setBusy(false);
     }
   }
