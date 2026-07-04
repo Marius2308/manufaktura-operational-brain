@@ -11,12 +11,17 @@ export function proxy(request: NextRequest) {
     pathname.startsWith("/login") ||
     pathname.startsWith("/api/login") ||
     pathname.startsWith("/_next") ||
-    pathname === "/favicon.ico"
+    pathname === "/favicon.ico" ||
+    pathname === "/robots.txt"
   ) {
     return NextResponse.next();
   }
+  const expected = process.env.APP_PASSWORD;
   const cookie = request.cookies.get("brain_auth")?.value;
-  if (cookie !== (process.env.APP_PASSWORD ?? "manufaktura")) {
+  // Fail closed: no hardcoded fallback. If APP_PASSWORD isn't configured,
+  // every request is treated as unauthenticated rather than risking an
+  // `undefined === undefined` false match against an unset cookie.
+  if (!expected || cookie !== expected) {
     if (pathname.startsWith("/api/")) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }

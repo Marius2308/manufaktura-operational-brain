@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: manufaktura-operational-brain
+    runtime: node
+    plan: free
+    buildCommand: npm install && npm run build
+    startCommand: npm run start
+    # No disk block: this app intentionally runs on Render's ephemeral
+    # filesystem. SQLite lives at ./data/brain.db, recreated on every boot —
+    # data resets on restart/redeploy by design (see README).
+    envVars:
+      - key: APP_PASSWORD
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: BRIEFING_MODEL
+        value: claude-sonnet-5

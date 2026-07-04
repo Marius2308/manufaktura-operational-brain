@@ -9,7 +9,7 @@ npm install
 npm run dev          # http://localhost:3000
 ```
 
-- Log in with the team password (`APP_PASSWORD` in `.env.local`, default `manufaktura`).
+- Log in with the team password (set via `APP_PASSWORD` in `.env.local` — required, there is no default; the app fails closed and rejects every password if it's unset).
 - Go to **Import** → click **“Load sample data”** — this imports the 5 base CSVs from `/sample-data` through the real normalization pipeline and runs anomaly detection.
 - Open any location and click **Generate briefing**.
 
@@ -23,6 +23,24 @@ npm run dev          # http://localhost:3000
 - **Tracking a recommendation is idempotent.** Briefing recommendations are re-derived from the same signals on every "Regenerate", so clicking **+ Track** on the same recommendation after a regenerate (or from two tabs) won't create a second action item — the server matches on location + title among not-yet-done items and returns the existing one.
 
 To enable real AI briefings, add `ANTHROPIC_API_KEY=sk-ant-...` to `.env.local` and restart. Without a key, briefings are produced by a deterministic rule-based generator (clearly labeled in the UI) so the whole demo works offline.
+
+## Deploying to Render (free tier, guided demo)
+
+This app is built to run on Render's free web service tier as-is — no Postgres, no persistent disk, no Docker needed.
+
+- **Port binding**: `next start` reads the `PORT` env var natively and binds to `0.0.0.0` by default, which is exactly what Render's proxy requires. Nothing to configure.
+- **No persistent disk**: SQLite lives at `./data/brain.db`, created fresh (`fs.mkdirSync(..., { recursive: true })`) on first boot of each running instance. Render's free tier has an ephemeral filesystem — **all data (imports, briefings, action items) is wiped on every restart, redeploy, or spin-down-from-inactivity.** That's expected and by design for this use case: click **"Load sample data"** again after any cold start to get back to the calibrated demo state.
+- **Build command**: `npm install && npm run build`
+- **Start command**: `npm run start`
+- **Node version**: pinned via `.node-version` / the `engines` field in `package.json` (Next.js 16 requires Node ≥20.9.0).
+- A `render.yaml` Blueprint is included — connect the repo and Render will pick up the service config automatically. It declares `APP_PASSWORD` and `ANTHROPIC_API_KEY` as required-but-unset (`sync: false`), so Render will prompt for them in the dashboard rather than silently deploying without them.
+
+**Required env vars on Render** (set in the dashboard, not via `.env.local` — that file isn't deployed):
+- `APP_PASSWORD` — **required**. Unlike local dev there's no hardcoded fallback: if this is left unset, the login route rejects every password and the app is fully inaccessible rather than silently exposed. Set it before the first deploy.
+- `ANTHROPIC_API_KEY` — optional; omit to run on the rule-based fallback briefing generator.
+- `BRIEFING_MODEL` — optional, defaults to `claude-sonnet-5`.
+
+**Not indexed**: `public/robots.txt` disallows all crawling (`Disallow: /`), since this is an internal client demo, not a public site.
 
 Optional CLI: `npx tsx scripts/load-sample.ts` loads the sample data and prints anomaly results per location — useful for verifying the detection rules.
 
