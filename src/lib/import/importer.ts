@@ -232,16 +232,26 @@ export function importFile(filename: string, buffer: Buffer): ImportResult {
         skipped++;
       }
     }
-    db.prepare("UPDATE uploads SET rows_imported = ?, rows_skipped = ? WHERE id = ?").run(added + updated, skipped, uploadId);
+    // A file that added, overwrote, or skipped nothing (e.g. re-clicking
+    // "Load sample data" when reviews/notes are already all on file) has
+    // nothing to audit — drop the speculative upload row rather than
+    // littering history with no-op records.
+    if (added + updated + skipped === 0) {
+      db.prepare("DELETE FROM uploads WHERE id = ?").run(uploadId);
+    } else {
+      db.prepare("UPDATE uploads SET rows_imported = ?, rows_skipped = ? WHERE id = ?").run(added + updated, skipped, uploadId);
+    }
   });
   importAll();
 
   // Re-run anomaly detection after every import (cheap, rule-based).
   runAnomalyDetection();
 
+  const isNoOp = added + updated + skipped === 0;
   return {
     filename, source: spec.label, sourceType: spec.type,
-    imported: added + updated, added, updated, unchanged, skipped, dateFrom, dateTo, uploadId,
+    imported: added + updated, added, updated, unchanged, skipped, dateFrom, dateTo,
+    uploadId: isNoOp ? null : uploadId,
   };
 }
 

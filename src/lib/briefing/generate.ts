@@ -7,14 +7,15 @@ import { generateFallbackBriefing } from "./fallback";
 
 /**
  * Briefing generation with graceful degradation:
- *   1. If Anthropic credentials are available, call Claude (claude-opus-4-8)
- *      with a JSON-schema-constrained output so the response always parses.
+ *   1. If Anthropic credentials are available, call Claude (model set by
+ *      BRIEFING_MODEL, default claude-sonnet-5) with a JSON-schema-constrained
+ *      output so the response always parses.
  *   2. On missing credentials or any API failure, fall back to the
  *      deterministic rule-based generator so the demo works offline.
  * The result is cached in the briefings table.
  */
 
-const MODEL = "claude-opus-4-8";
+const MODEL = process.env.BRIEFING_MODEL || "claude-sonnet-5";
 
 export interface StoredBriefing {
   id: number;
