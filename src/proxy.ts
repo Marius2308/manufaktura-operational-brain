@@ -12,7 +12,13 @@ export function proxy(request: NextRequest) {
     pathname.startsWith("/api/login") ||
     pathname.startsWith("/_next") ||
     pathname === "/favicon.ico" ||
-    pathname === "/robots.txt"
+    pathname === "/robots.txt" ||
+    // Branding assets the login page itself renders, before any cookie
+    // exists. Without this, a first-time visitor's browser requests for
+    // these get redirected to /login and return HTML instead of image
+    // bytes, so the logo/favicon silently fail to render pre-login.
+    pathname === "/logo.png" ||
+    pathname === "/icon.png"
   ) {
     return NextResponse.next();
   }
