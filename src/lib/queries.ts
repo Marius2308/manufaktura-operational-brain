@@ -149,8 +149,17 @@ export interface UploadRow {
   rows_imported: number;
   rows_skipped: number;
   uploaded_at: string;
+  is_latest_for_source: number; // 1 if no later upload of the same detected_source exists, else 0
 }
 
 export function getUploads(): UploadRow[] {
-  return getDb().prepare("SELECT * FROM uploads ORDER BY id DESC LIMIT 30").all() as UploadRow[];
+  return getDb()
+    .prepare(
+      `SELECT u.*,
+         (u.id = (SELECT MAX(id) FROM uploads u2 WHERE u2.detected_source = u.detected_source)) AS is_latest_for_source
+       FROM uploads u
+       ORDER BY u.id DESC
+       LIMIT 30`
+    )
+    .all() as UploadRow[];
 }

@@ -269,16 +269,42 @@ function seenBefore(existing: Set<string>, key: string): boolean {
 }
 
 /**
- * Undo an import: remove every row attributable to it, then re-run anomaly
- * detection. Note: if a later import overwrote some of these rows (sales /
- * payroll / checklist upserts reassign upload_id), those rows now belong to
- * the later import and are left untouched — so undo removes what this import
- * still owns, which for a fresh import is all of its rows.
+ * Whether an upload can be safely undone: only the most recent upload of its
+ * detected_source qualifies. An older one may have had some of its rows
+ * overwritten by a later import of the same type (sales/payroll/checklist
+ * upserts reassign upload_id on conflict), so undoing it would silently only
+ * remove the rows it still owns rather than fully reverting — a partial,
+ * misleading undo. Reviews/notes never reassign upload_id, but the same
+ * most-recent-only rule is applied uniformly rather than special-cased.
  */
-export function deleteUpload(uploadId: number): { removed: number } | null {
+export function isUploadUndoable(uploadId: number): boolean {
   const db = getDb();
-  const upload = db.prepare("SELECT id FROM uploads WHERE id = ?").get(uploadId);
+  const upload = db.prepare("SELECT id, detected_source FROM uploads WHERE id = ?").get(uploadId) as
+    | { id: number; detected_source: string }
+    | undefined;
+  if (!upload) return false;
+  const latest = db
+    .prepare("SELECT id FROM uploads WHERE detected_source = ? ORDER BY id DESC LIMIT 1")
+    .get(upload.detected_source) as { id: number } | undefined;
+  return latest?.id === upload.id;
+}
+
+/**
+ * Undo an import: remove every row attributable to it, then re-run anomaly
+ * detection. Refuses to run on anything but the most recent upload of its
+ * source type — see isUploadUndoable().
+ */
+export function deleteUpload(uploadId: number): { removed: number } | { error: string } | null {
+  const db = getDb();
+  const upload = db.prepare("SELECT id, filename, detected_source FROM uploads WHERE id = ?").get(uploadId) as
+    | { id: number; filename: string; detected_source: string }
+    | undefined;
   if (!upload) return null;
+  if (!isUploadUndoable(uploadId)) {
+    return {
+      error: `Can't undo "${upload.filename}" — a later ${upload.detected_source} import may have overwritten some of its rows. Only the most recent ${upload.detected_source} import can be undone.`,
+    };
+  }
   const tables = ["daily_sales", "payroll_weeks", "checklist_scores", "reviews", "manager_notes"];
   let removed = 0;
   const tx = db.transaction(() => {

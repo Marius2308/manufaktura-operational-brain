@@ -8,5 +8,6 @@ export async function DELETE(_request: NextRequest, { params }: { params: Promis
   const { id } = await params;
   const result = deleteUpload(Number(id));
   if (!result) return NextResponse.json({ error: "Import not found" }, { status: 404 });
+  if ("error" in result) return NextResponse.json({ error: result.error }, { status: 409 });
   return NextResponse.json(result);
 }
