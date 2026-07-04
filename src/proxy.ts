@@ -1,5 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 
+// Static image/icon assets (logo, favicon, app-router icon/apple-icon/
+// opengraph-image convention files, anything in /public, etc.) are public
+// branding, never sensitive data, and some — like the login page's own logo
+// — are requested by a browser that has no auth cookie yet. Gating them
+// behind the login redirect just returns HTML instead of image bytes,
+// silently breaking pre-login rendering. Matched by extension instead of an
+// enumerated path list so a future icon file doesn't need its own line here.
+const PUBLIC_ASSET_PATTERN = /\.(png|jpe?g|svg|ico|webp|gif)$/i;
+
 /**
  * Simple login gate (per spec: one internal user type, no roles).
  * A cookie set by /api/login must match APP_PASSWORD. Not production-grade
@@ -11,14 +20,8 @@ export function proxy(request: NextRequest) {
     pathname.startsWith("/login") ||
     pathname.startsWith("/api/login") ||
     pathname.startsWith("/_next") ||
-    pathname === "/favicon.ico" ||
     pathname === "/robots.txt" ||
-    // Branding assets the login page itself renders, before any cookie
-    // exists. Without this, a first-time visitor's browser requests for
-    // these get redirected to /login and return HTML instead of image
-    // bytes, so the logo/favicon silently fail to render pre-login.
-    pathname === "/logo.png" ||
-    pathname === "/icon.png"
+    PUBLIC_ASSET_PATTERN.test(pathname)
   ) {
     return NextResponse.next();
   }
